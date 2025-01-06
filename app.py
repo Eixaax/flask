@@ -151,50 +151,32 @@ def fetch_user_devices(data):
 
 @socketio.on('fetch_audio_recordings')
 def fetch_audio_recordings(data):
-    user_id = data.get('uid')  # Get user_id from the incoming data
+    user_id = data.get('uid')
     if not user_id:
-        socketio.emit('audio_recordings_response', {
-            "success": False,
-            "error": "Missing user_id"
-        })
+        socketio.emit('audio_recordings_response', {"success": False, "error": "Missing user_id"})
         return
 
     try:
-        # Query the `audiorecordings` collection for the user's audio recordings
         user_audios = audios.find({"user_id": user_id})
         recordings = []
 
         for audio in user_audios:
-            # Check if the data is already base64 encoded, otherwise encode it
+            # Check and encode audio data
             audio_data = audio['audio_data']
-            if isinstance(audio_data, bytes):
-                audio_base64 = base64.b64encode(audio_data).decode('utf-8')
-            else:
-                audio_base64 = audio_data  # If already encoded, use as is
-
-            # Convert timestamp to a string format
-            timestamp = audio.get("timestamp")
-            if isinstance(timestamp, datetime):
-                timestamp = timestamp.isoformat()  # Convert to ISO string
+            audio_base64 = base64.b64encode(audio_data).decode('utf-8') if isinstance(audio_data, bytes) else audio_data
+            timestamp = audio.get("timestamp").isoformat() if isinstance(audio.get("timestamp"), datetime) else ""
 
             recordings.append({
-                "id": str(audio["_id"]),  # Convert ObjectId to string
+                "id": str(audio["_id"]),
                 "predicted_class": audio.get("predicted_class", "Unknown"),
                 "timestamp": timestamp,
-                "audio_url": f"data:audio/wav;base64,{audio_base64}"  # Send as base64 data URI
+                "audio_url": f"data:audio/wav;base64,{audio_base64}"
             })
 
-        # Emit the recordings back to the client
-        socketio.emit('audio_recordings_response', {
-            "success": True,
-            "recordings": recordings
-        })
+        # Emit success response with recordings
+        socketio.emit('audio_recordings_response', {"success": True, "recordings": recordings})
     except Exception as e:
-        # Handle errors gracefully
-        socketio.emit('audio_recordings_response', {
-            "success": False,
-            "error": str(e)
-        })
+        socketio.emit('audio_recordings_response', {"success": False, "error": str(e)})
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
