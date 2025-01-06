@@ -4,7 +4,7 @@ from flask import Flask, request
 from flask_socketio import SocketIO
 from pymongo import MongoClient
 from bson import ObjectId
-
+import base64
 
 # Create Flask app and SocketIO instance
 app = Flask(__name__)
@@ -148,7 +148,6 @@ def fetch_user_devices(data):
     print(devices)  
     socketio.emit('user_devices_response', {"devices": devices})
 
-
 @socketio.on('fetch_audio_recordings')
 def fetch_audio_recordings(data):
     user_id = data.get('uid')  # Get user_id from the incoming data
@@ -165,8 +164,13 @@ def fetch_audio_recordings(data):
         recordings = []
 
         for audio in user_audios:
-            # Base64 encode the binary audio data for transmission
-            audio_base64 = audio['audio_data'].decode('utf-8')  # Assuming it’s already base64 encoded in the DB
+            # Check if the data is already base64 encoded, otherwise encode it
+            audio_data = audio['audio_data']
+            if isinstance(audio_data, bytes):
+                audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+            else:
+                audio_base64 = audio_data  # If already encoded, use as is
+
             recordings.append({
                 "id": str(audio["_id"]),  # Convert ObjectId to string
                 "predicted_class": audio.get("predicted_class", "Unknown"),
