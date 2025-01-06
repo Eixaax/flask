@@ -5,6 +5,7 @@ from flask_socketio import SocketIO
 from pymongo import MongoClient
 from bson import ObjectId
 import base64
+from datetime import datetime
 
 # Create Flask app and SocketIO instance
 app = Flask(__name__)
@@ -171,10 +172,15 @@ def fetch_audio_recordings(data):
             else:
                 audio_base64 = audio_data  # If already encoded, use as is
 
+            # Convert timestamp to a string format
+            timestamp = audio.get("timestamp")
+            if isinstance(timestamp, datetime):
+                timestamp = timestamp.isoformat()  # Convert to ISO string
+
             recordings.append({
                 "id": str(audio["_id"]),  # Convert ObjectId to string
                 "predicted_class": audio.get("predicted_class", "Unknown"),
-                "timestamp": audio.get("timestamp"),
+                "timestamp": timestamp,
                 "audio_url": f"data:audio/wav;base64,{audio_base64}"  # Send as base64 data URI
             })
 
