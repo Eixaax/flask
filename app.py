@@ -14,6 +14,8 @@ client = MongoClient("mongodb+srv://isa:admin@cluster0.v0xnx.mongodb.net/?retryW
 db = client['test']
 collection = db['Device']
 user_devices = db['UserDevices']
+audios = db['audiorecordings']
+
 
 connected_devices = {}
 
@@ -145,6 +147,44 @@ def fetch_user_devices(data):
 
     print(devices)  
     socketio.emit('user_devices_response', {"devices": devices})
+
+
+@socketio.on('fetch_audio_recordings')
+def fetch_audio_recordings(data):
+    user_id = data.get('uid')  # Get user_id from the incoming data
+    if not user_id:
+        socketio.emit('audio_recordings_response', {
+            "success": False,
+            "error": "Missing user_id"
+        })
+        return
+
+    try:
+        # Query the `audiorecordings` collection for the user's audio recordings
+        user_audios = audios.find({"user_id": user_id})
+        recordings = []
+
+        for audio in user_audios:
+            # Base64 encode the binary audio data for transmission
+            audio_base64 = audio['audio_data'].decode('utf-8')  # Assuming it’s already base64 encoded in the DB
+            recordings.append({
+                "id": str(audio["_id"]),  # Convert ObjectId to string
+                "predicted_class": audio.get("predicted_class", "Unknown"),
+                "timestamp": audio.get("timestamp"),
+                "audio_url": f"data:audio/wav;base64,{audio_base64}"  # Send as base64 data URI
+            })
+
+        # Emit the recordings back to the client
+        socketio.emit('audio_recordings_response', {
+            "success": True,
+            "recordings": recordings
+        })
+    except Exception as e:
+        # Handle errors gracefully
+        socketio.emit('audio_recordings_response', {
+            "success": False,
+            "error": str(e)
+        })
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
