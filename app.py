@@ -17,6 +17,14 @@ user_devices = db['UserDevices']
 
 connected_devices = {}
 
+@socketio.on('device_status_update')
+def handle_device_status_update(data):
+    user_id = data.get('user_id')
+    message = data.get('message')
+
+    print(f"Received status update for user_id {user_id}: {message}")
+    socketio.emit('status_notification', {'user_id': user_id, 'message': message})
+
 @socketio.on('connect')
 def handle_connect():
     print("A device connected.")
