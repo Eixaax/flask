@@ -150,33 +150,35 @@ def fetch_user_devices(data):
     socketio.emit('user_devices_response', {"devices": devices})
 
 @socketio.on('fetch_audio_recordings')
-def fetch_audio_recordings(data):
+def handle_fetch_audio_recordings(data):
     user_id = data.get('uid')
     if not user_id:
-        socketio.emit('audio_recordings_response', {"success": False, "error": "Missing user_id"})
+        socketio.emit('audio_recordings_response', {
+            'success': False,
+            'error': 'Missing user ID'
+        })
         return
+    
+    # Fetch all audio documents for the given user_id from MongoDB
+    user_audios = audios.find({"user_id": user_id})
 
-    try:
-        user_audios = audios.find({"user_id": user_id})
-        recordings = []
+    # Prepare a list to store the audio details
+    audio_details = []
 
-        for audio in user_audios:
-            # Check and encode audio data
-            audio_data = audio['audio_data']
-            audio_base64 = base64.b64encode(audio_data).decode('utf-8') if isinstance(audio_data, bytes) else audio_data
-            timestamp = audio.get("timestamp").isoformat() if isinstance(audio.get("timestamp"), datetime) else ""
-
-            recordings.append({
-                "id": str(audio["_id"]),
-                "predicted_class": audio.get("predicted_class", "Unknown"),
-                "timestamp": timestamp,
-                "audio_url": f"data:audio/wav;base64,{audio_base64}"
-            })
-
-        # Emit success response with recordings
-        socketio.emit('audio_recordings_response', {"success": True, "recordings": recordings})
-    except Exception as e:
-        socketio.emit('audio_recordings_response', {"success": False, "error": str(e)})
+    # Collect each audio recording's details
+    for audio in user_audios:
+        audio_info = {
+            'audio_id': str(audio['_id']),
+            'predicted_class': audio['predicted_class'],
+            'timestamp': str(audio['timestamp']),
+        }
+        audio_details.append(audio_info)
+    
+    # Emit the audio details to the front-end
+    socketio.emit('audio_recordings_response', {
+        'success': True,
+        'recordings': audio_details
+    })
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
