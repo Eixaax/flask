@@ -17,16 +17,7 @@ collection = db['Device']
 user_devices = db['UserDevices']
 audios = db['audiorecordings']
 
-
 connected_devices = {}
-
-@socketio.on('device_status_update')
-def handle_device_status_update(data):
-    user_id = data.get('user_id')
-    message = data.get('message')
-
-    print(f"Received status update for user_id {user_id}: {message}")
-    socketio.emit('status_notification', {'user_id': user_id, 'message': message})
 
 @socketio.on('connect')
 def handle_connect():
@@ -61,6 +52,16 @@ def register_device(data):
         print(f"Device {device_name} registered.")
         print("Connected devices:", connected_devices)
 
+@socketio.on('device_status_update')
+def handle_device_status_update(data):
+    user_id = data.get('user_id')
+    message = data.get('message')
+
+    print(message)
+
+    print(f"Received status update for user_id {user_id}: {message}")
+    socketio.emit('status_notification', {'user_id': user_id, 'message': message})
+
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -69,7 +70,6 @@ def handle_disconnect():
     if device_name:
         print(f"Device {device_name} disconnected.")
         
-        # Update the device status to 'offline' in the database
         collection.update_one(
             {"device_name": device_name},
             {"$set": {"status": "offline"}}
@@ -94,13 +94,27 @@ def handle_device_check_and_connect(data):
     device = collection.find_one({"device_name": device_name})
     if device:
         device_id = str(device.get('_id'))
+        current_connection_status = device.get('connection')
+
+        if current_connection_status == "connected":
+            # Emit a response indicating the device is already paired
+            socketio.emit('response', {
+                'success': False,
+                'message': 'Device is already paired with another device',
+                'status': 'online',
+                'connection': 'connected',
+                'deviceId': device_id
+            })
+            print(f"Device {device_name} is already paired with another device.")
+            return
 
         # Update the device status to 'online' and connection to 'connected'
         collection.update_one(
             {"_id": ObjectId(device_id)},
             {"$set": {"status": "online", "connection": "connected"}}
         )
-        print('updated and saved!')
+        print('Device updated and saved!')
+
         # Save the device ID in the UserDevices collection
         user_device = user_devices.find_one({"device_id": device_id})
         if not user_device:
@@ -130,6 +144,7 @@ def handle_device_check_and_connect(data):
             'deviceId': None
         })
 
+
 @socketio.on('fetch_user_devices')
 def fetch_user_devices(data):
     user_id = data.get('uid')
@@ -152,20 +167,19 @@ def fetch_user_devices(data):
 @socketio.on('fetch_audio_recordings')
 def handle_fetch_audio_recordings(data):
     user_id = data.get('uid')
+    print(user_id)
     if not user_id:
         socketio.emit('audio_recordings_response', {
             'success': False,
-            'error': 'Missing user ID'
+            'error': 'Missing user ID'  
         })
         return
     
-    # Fetch all audio documents for the given user_id from MongoDB
-    user_audios = audios.find({"user_id": user_id})
+    print('fetching 10')
+    user_audios = audios.find({"user_id": user_id}).limit(10)
 
-    # Prepare a list to store the audio details
     audio_details = []
 
-    # Collect each audio recording's details
     for audio in user_audios:
         audio_info = {
             'audio_id': str(audio['_id']),
@@ -173,6 +187,11 @@ def handle_fetch_audio_recordings(data):
             'timestamp': str(audio['timestamp']),
         }
         audio_details.append(audio_info)
+
+    # Print the fetched audio details
+    print("Fetched audio recordings:")
+    for audio in audio_details:
+        print(audio)
     
     # Emit the audio details to the front-end
     socketio.emit('audio_recordings_response', {
@@ -182,3 +201,5 @@ def handle_fetch_audio_recordings(data):
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
+
+
