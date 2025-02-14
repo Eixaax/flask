@@ -1,5 +1,9 @@
+
 Flask
 Flask-SocketIO
-pymongo
-gunicorn
+Flask-JWT-Extended
+Flask-Cors
+pymongo=
+bcrypt
 eventlet
+dnspython
