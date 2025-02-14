@@ -1,6 +1,9 @@
 import eventlet
 eventlet.monkey_patch()
-from flask import Flask, request
+from flask import Flask, request, jsonify
+import bcrypt
+from flask_cors import CORS
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, JWTManager
 from flask_socketio import SocketIO
 from pymongo import MongoClient
 from bson import ObjectId
@@ -200,6 +203,66 @@ def handle_fetch_audio_recordings(data):
         'page': page  # Send back the current page number for reference
     })
 
+@app.route("/login-user", methods=["POST"])
+def login():
+    data = request.get_json()
+    email = data.get("email")
+    password = data.get("password")
+
+    # Find the user in the database
+    user = users_collection.find_one({"email": email})
+
+    if not user:
+        return jsonify({"status": "error", "data": "User not found"}), 404
+        print("User not found")
+
+    # Get the stored password from the database
+    stored_password = user["password"]
+
+    # Check if the stored password is a string and encode it if needed
+    if isinstance(stored_password, str):
+        stored_password = stored_password.encode('utf-8')
+
+    # Check if the password matches
+    if not bcrypt.checkpw(password.encode('utf-8'), stored_password):
+        return jsonify({"status": "error", "data": "Incorrect password"}), 401
+
+    # Generate JWT token with user_id as identity
+    token = create_access_token(identity=str(user["_id"]))  # Ensure the _id is converted to string
+
+    return jsonify({"status": "ok", "data": token}), 200
+
+
+
+# Get User Data (Protected)
+@app.route("/userdata", methods=["POST"])
+@jwt_required()
+def get_userdata():
+    try:
+        user_id = get_jwt_identity()
+
+        if not user_id:
+            print("No user ID found in token.")
+            return jsonify({"status": "error", "data": "Invalid token"}), 401
+        
+        user = users_collection.find_one({"_id": ObjectId(user_id)})
+
+        if not user:
+            print("User not found")
+            return jsonify({"status": "error", "data": "User not found"}), 404
+            
+        user_data = {
+            "id": str(user["_id"]),  # MongoDB ObjectId needs to be converted to string
+            "name": user.get("name"),
+            "email": user.get("email")
+        }
+
+        return jsonify({"status": "ok", "data": user_data}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return jsonify({"status": "error", "data": "An error occurred"}), 500
+    
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
