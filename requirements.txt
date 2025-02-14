@@ -3,7 +3,7 @@ Flask
 Flask-SocketIO
 Flask-JWT-Extended
 Flask-Cors
-pymongo=
+pymongo
 bcrypt
 eventlet
 dnspython
