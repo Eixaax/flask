@@ -13,12 +13,17 @@ from datetime import datetime
 # Create Flask app and SocketIO instance
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
+CORS(app)
+app.config['JWT_SECRET_KEY'] = "a9f8b27c9d3e4f5b6c7d8e9f1029384756c7d8e9f1029384756a7b8c9d0e1f2"
+jwt = JWTManager(app)
+
 
 client = MongoClient("mongodb+srv://isa:admin@cluster0.v0xnx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 db = client['test']
 collection = db['Device']
 user_devices = db['UserDevices']
 audios = db['audiorecordings']
+users_collection = db["UserInfo"]
 
 connected_devices = {}
 
@@ -209,28 +214,35 @@ def login():
     email = data.get("email")
     password = data.get("password")
 
+    if "users_collection" not in globals():
+        print("users_collection is not defined in global scope!")
+        return jsonify({"status": "error", "data": "Server error"}), 500
+
+    # Debugging statement
+    print(f"Checking login for {email}")
+
     # Find the user in the database
     user = users_collection.find_one({"email": email})
 
     if not user:
-        return jsonify({"status": "error", "data": "User not found"}), 404
         print("User not found")
+        return jsonify({"status": "error", "data": "User not found"}), 404
 
     # Get the stored password from the database
-    stored_password = user["password"]
+    stored_password = user.get("password", "")
 
-    # Check if the stored password is a string and encode it if needed
     if isinstance(stored_password, str):
-        stored_password = stored_password.encode('utf-8')
+        stored_password = stored_password.encode("utf-8")
 
-    # Check if the password matches
-    if not bcrypt.checkpw(password.encode('utf-8'), stored_password):
-        return jsonify({"status": "error", "data": "Incorrect password"}), 401
+    # Compare the passwords
+    if not bcrypt.checkpw(password.encode("utf-8"), stored_password):
+        print("Invalid password")
+        return jsonify({"status": "error", "data": "Invalid password"}), 401
 
-    # Generate JWT token with user_id as identity
-    token = create_access_token(identity=str(user["_id"]))  # Ensure the _id is converted to string
-
-    return jsonify({"status": "ok", "data": token}), 200
+    # Create JWT token
+    access_token = create_access_token(identity=str(user["_id"]))
+    
+    return jsonify({"status": "success", "token": access_token}), 200
 
 
 
