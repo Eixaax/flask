@@ -183,7 +183,7 @@ def handle_fetch_audio_recordings(data):
             'audio_id': str(audio['_id']),
             'predicted_class': audio['predicted_class'],
             'timestamp': str(audio['timestamp']),
-            'audioUrl': audio['audio_url'],  # Add the audio URL here
+            'audioUrl': audio['audio_data'],  # Add the audio URL here
         }
         audio_details.append(audio_info)
 
