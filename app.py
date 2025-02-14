@@ -167,14 +167,20 @@ def fetch_user_devices(data):
 @socketio.on('fetch_audio_recordings')
 def handle_fetch_audio_recordings(data):
     user_id = data.get('uid')
+    page = data.get('page', 1)  # Get the page number, default is 1 if not provided
     if not user_id:
         socketio.emit('audio_recordings_response', {
             'success': False,
             'error': 'Missing user ID'  
         })
         return
-    
-    user_audios = audios.find({"user_id": user_id}).limit(10)
+
+    # Limit the number of recordings per page and calculate the offset
+    limit = 10
+    skip = (page - 1) * limit  # Calculate the offset (skip)
+
+    # Fetch user audio recordings, sorted by timestamp (newest to oldest)
+    user_audios = audios.find({"user_id": user_id}).sort("timestamp", -1).skip(skip).limit(limit)
 
     audio_details = []
 
@@ -187,10 +193,11 @@ def handle_fetch_audio_recordings(data):
         }
         audio_details.append(audio_info)
 
-    # Emit the audio details to the front-end
+    # Emit the audio details to the front-end with the page info
     socketio.emit('audio_recordings_response', {
         'success': True,
-        'recordings': audio_details
+        'recordings': audio_details,
+        'page': page  # Send back the current page number for reference
     })
 
 
