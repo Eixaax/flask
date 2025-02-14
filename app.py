@@ -167,7 +167,6 @@ def fetch_user_devices(data):
 @socketio.on('fetch_audio_recordings')
 def handle_fetch_audio_recordings(data):
     user_id = data.get('uid')
-    print(user_id)
     if not user_id:
         socketio.emit('audio_recordings_response', {
             'success': False,
@@ -175,7 +174,6 @@ def handle_fetch_audio_recordings(data):
         })
         return
     
-    print('fetching 10')
     user_audios = audios.find({"user_id": user_id}).limit(10)
 
     audio_details = []
@@ -185,19 +183,16 @@ def handle_fetch_audio_recordings(data):
             'audio_id': str(audio['_id']),
             'predicted_class': audio['predicted_class'],
             'timestamp': str(audio['timestamp']),
+            'audioUrl': audio['audio_url'],  # Add the audio URL here
         }
         audio_details.append(audio_info)
 
-    # Print the fetched audio details
-    print("Fetched audio recordings:")
-    for audio in audio_details:
-        print(audio)
-    
     # Emit the audio details to the front-end
     socketio.emit('audio_recordings_response', {
         'success': True,
         'recordings': audio_details
     })
+
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
