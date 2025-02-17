@@ -274,6 +274,30 @@ def get_userdata():
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({"status": "error", "data": "An error occurred"}), 500
+
+@app.route("/register", methods=["POST"])
+def register():
+    """Register a new user"""
+    data = request.get_json()
+    name = data.get("name")
+    email = data.get("email")
+    password = data.get("password")
+
+    # Check if user already exists
+    if users_collection.find_one({"email": email}):
+        return jsonify({"status": "error", "data": "User Already Exists!"}), 400
+
+    # Hash the password before storing
+    hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+
+    # Insert user into database
+    user_id = users_collection.insert_one({
+        "name": name,
+        "email": email,
+        "password": hashed_password
+    }).inserted_id
+
+    return jsonify({"status": "ok", "data": "User Created", "user_id": str(user_id)}), 201
     
 
 if __name__ == '__main__':
