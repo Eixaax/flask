@@ -153,6 +153,55 @@ def handle_device_check_and_connect(data):
         })
 
 
+@socketio.on('disconnect_device')
+def disconnect_device(data):
+    device_id = data.get('deviceId')
+
+    if not device_id:
+        print("No device ID provided for disconnect.")
+        return socketio.emit('device_disconnected_response', {
+            'success': False,
+            'message': 'Device ID is required'
+        })
+
+    # Find the device by its ID in the database
+    device = collection.find_one({"_id": ObjectId(device_id)})
+
+    if not device:
+        print(f"Device with ID {device_id} not found.")
+        return socketio.emit('device_disconnected_response', {
+            'success': False,
+            'message': 'Device not found'
+        })
+
+    # Update the device status to "offline" and remove the connection
+    collection.update_one(
+        {"_id": ObjectId(device_id)},
+        {"$set": {"connection": "disconnected"}}
+    )
+
+    # Remove from connected devices if present
+    device_name = device.get("device_name")
+    sid_to_remove = None
+    for sid, name in connected_devices.items():
+        if name == device_name:
+            sid_to_remove = sid
+            break
+    
+    if sid_to_remove:
+        connected_devices.pop(sid_to_remove, None)
+
+    print(f"Device {device_name} disconnected successfully.")
+
+    # Emit response to client
+    socketio.emit('device_disconnected_response', {
+        'success': True,
+        'message': 'Device disconnected successfully',
+        'deviceId': device_id
+    })
+
+
+
 @socketio.on('fetch_user_devices')
 def fetch_user_devices(data):
     user_id = data.get('uid')
