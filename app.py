@@ -174,7 +174,9 @@ def disconnect_device(data):
             'message': 'Device not found'
         })
 
-    # Update the device status to "offline" and remove the connection
+    user_devices.delete_one({"deviceId": device_id})
+    print(f"Device {device_id} removed from UserDevices collection.")
+
     collection.update_one(
         {"_id": ObjectId(device_id)},
         {"$set": {"connection": "disconnected"}}
