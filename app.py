@@ -8,7 +8,10 @@ from flask_socketio import SocketIO
 from pymongo import MongoClient
 from bson import ObjectId
 import base64
-from datetime import datetime
+import random
+import smtplib
+from email.message import EmailMessage
+from datetime import datetime, timedelta
 
 # Create Flask app and SocketIO instance
 app = Flask(__name__)
@@ -24,8 +27,136 @@ collection = db['Device']
 user_devices = db['UserDevices']
 audios = db['audiorecordings']
 users_collection = db["UserInfo"]
+otptable = db['otp']
 
 connected_devices = {}
+
+@socketio.on('send_otp')
+def sendOTP(data):
+    try:
+        email = data.get('email')
+        if not email:
+            print("Email not provided")
+            socketio.emit('response', {'success': False, 'message': 'Email is required'})
+            return
+        
+        # Generate a 6-digit OTP
+        otp = ''.join([str(random.randint(0, 9)) for _ in range(6)])
+        
+        # Save OTP in MongoDB with expiration time (5 mins)
+        expiration_time = datetime.utcnow() + timedelta(minutes=5)
+        otptable.update_one(
+            {'email': email}, 
+            {'$set': {'otp': otp, 'expires_at': expiration_time,'status':'pending'}}, 
+            upsert=True
+        )
+
+        # Email setup
+        msg = EmailMessage()
+        msg['Subject'] = "OTP VERIFICATION"
+        msg['From'] = "isaacradjaluddin@gmail.com"
+        msg['To'] = email
+        msg.set_content(f"YOUR OTP VERIFICATION CODE IS: {otp}")
+
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login('isaacradjaluddin@gmail.com', 'oabm ksdh rpud dbri')
+        server.send_message(msg)
+        server.quit()
+
+        print(f"Email sent to {email} with OTP: {otp}")
+        socketio.emit('response', {'success': True, 'message': f'OTP sent successfully to {email}'})
+
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        socketio.emit('response', {'success': False, 'message': 'OTP failed to send'})
+
+@socketio.on('verify_otp')
+def verify(data):
+    try:
+        email = data.get('email')
+        enteredOTP = data.get('enteredOTP')
+
+        if not email or not enteredOTP:
+            socketio.emit('response', {'success': False, 'message': 'Email and OTP are required'})
+            return
+
+        record = otptable.find_one({'email': email})
+
+        if not record:
+            socketio.emit('response', {'success': False, 'message': 'Invalid email or OTP'})
+            print("Record not found")
+            return
+
+        stored_otp = record.get('otp')
+        expires_at = record.get('expires_at')
+
+        if stored_otp != enteredOTP:
+            socketio.emit('response', {'success': False, 'message': 'Incorrect OTP'})
+            print("INCORRECT OTP")
+            return
+
+        if expires_at and datetime.utcnow() > expires_at:
+            socketio.emit('response', {'success': False, 'message': 'OTP has expired'})
+            print("OTP HAS EXPIRED")
+            return
+
+        # Update OTP status to "verified"
+        otptable.update_one(
+            {'email': email},
+            {'$set': {'status': 'verified'}}
+        )
+
+        socketio.emit('response', {'success': True, 'message': 'OTP verified successfully'})
+        print("VERIFIED OTP")
+
+    except Exception as e:
+        print(f"Error verifying OTP: {e}")
+        socketio.emit('response', {'success': False, 'message': 'An error occurred during OTP verification'})
+
+
+@socketio.on('change_password')
+def change_pass(data):
+    try:
+        email = data.get('email')
+        newPassword = data.get('newPassword')
+        print(email)
+        print(newPassword)
+
+        if not email or not newPassword:
+            socketio.emit('response', {'success': False, 'message': 'Email and new password are required'})
+            return
+
+        record = otptable.find_one({'email': email})
+
+        if not record:
+            socketio.emit('response', {'success': False, 'message': 'Invalid email'})
+            print("Record not found")
+            return
+
+        if record.get('status') != 'verified':
+            socketio.emit('response', {'success': False, 'message': 'OTP verification required'})
+            print("OTP NOT VERIFIED")
+            return
+
+
+        result = users_collection.update_one(
+            {'email': email},
+            {'$set': {'password': newPassword}}
+        )
+
+        if result.modified_count > 0:
+            socketio.emit('response', {'success': True, 'message': 'Password changed successfully'})
+            print("PASSWORD UPDATED")
+        else:
+            socketio.emit('response', {'success': False, 'message': 'Failed to update password'})
+            print("PASSWORD UPDATE FAILED")
+
+    except Exception as e:
+        print(f"Error changing password: {e}")
+        socketio.emit('response', {'success': False, 'message': 'An error occurred while changing password'})
+
+
 
 @socketio.on('connect')
 def handle_connect():
