@@ -361,7 +361,9 @@ def fetch_user_devices(data):
 @socketio.on('fetch_audio_recordings')
 def handle_fetch_audio_recordings(data):
     user_id = data.get('uid')
-    page = data.get('page', 1)  # Get the page number, default is 1 if not provided
+    page = data.get('page', 1)  
+    selected_date = data.get('date')  # Get the selected date
+    print(selected_date)
     if not user_id:
         socketio.emit('audio_recordings_response', {
             'success': False,
@@ -371,28 +373,50 @@ def handle_fetch_audio_recordings(data):
 
     # Limit the number of recordings per page and calculate the offset
     limit = 10
-    skip = (page - 1) * limit  # Calculate the offset (skip)
+    skip = (page - 1) * limit  
 
-    # Fetch user audio recordings, sorted by timestamp (newest to oldest)
-    user_audios = audios.find({"user_id": user_id}).sort("timestamp", -1).skip(skip).limit(limit)
+    # Ensure selected_date is provided and in valid format
+    if selected_date:
+        try:
+            # Convert string date to datetime object for filtering
+            date_obj = datetime.strptime(selected_date, "%Y-%m-%d")
+            start_of_day = datetime(date_obj.year, date_obj.month, date_obj.day, 0, 0, 0)
+            end_of_day = datetime(date_obj.year, date_obj.month, date_obj.day, 23, 59, 59)
+            
+            # Fetch user audio recordings for the selected date
+            query = {
+                "user_id": user_id,
+                "timestamp": {"$gte": start_of_day, "$lte": end_of_day}
+            }
+        except ValueError:
+            socketio.emit('audio_recordings_response', {
+                'success': False,
+                'error': 'Invalid date format'
+            })
+            return
+    else:
+        query = {"user_id": user_id}
+
+    # Query the database
+    user_audios = audios.find(query).sort("timestamp", -1).skip(skip).limit(limit)
 
     audio_details = []
-
     for audio in user_audios:
         audio_info = {
             'audio_id': str(audio['_id']),
             'predicted_class': audio['predicted_class'],
             'timestamp': str(audio['timestamp']),
-            'audioUrl': audio['audio_url'],  # Add the audio URL here
+            'audioUrl': audio['audio_url'],
         }
         audio_details.append(audio_info)
 
-    # Emit the audio details to the front-end with the page info
+    # Emit the audio details to the front-end
     socketio.emit('audio_recordings_response', {
         'success': True,
         'recordings': audio_details,
-        'page': page  # Send back the current page number for reference
+        'page': page  
     })
+
 
 @app.route("/login-user", methods=["POST"])
 def login():
@@ -462,9 +486,11 @@ def get_userdata():
             return jsonify({"status": "error", "data": "User not found"}), 404
             
         user_data = {
-            "id": str(user["_id"]),  # MongoDB ObjectId needs to be converted to string
+            "id": str(user["_id"]), 
             "name": user.get("name"),
             "email": user.get("email")
+            "profile_picture": user.get("profile_picture", "")  
+
         }
 
         return jsonify({"status": "ok", "data": user_data}), 200
@@ -497,6 +523,23 @@ def register():
 
     return jsonify({"status": "ok", "data": "User Created", "user_id": str(user_id)}), 201
     
+
+@app.route('/update-profile', methods=['POST'])
+def update_profile():
+    data = request.json
+    user_email = data.get("email")  # Ensure email is sent in request
+    new_name = data.get("name")
+    new_profile_picture = data.get("profile_picture")
+
+    if not user_email:
+        return jsonify({"status": "error", "message": "Email is required"}), 400
+
+    users_collection.update_one(
+        {"email": user_email}, 
+        {"$set": {"name": new_name, "profile_picture": new_profile_picture}}
+    )
+
+    return jsonify({"status": "ok", "message": "Profile updated successfully!"})
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
