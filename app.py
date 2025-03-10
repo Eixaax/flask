@@ -3,7 +3,7 @@ eventlet.monkey_patch()
 from flask import Flask, request, jsonify
 import bcrypt
 from flask_cors import CORS
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, JWTManager
+from flask_jwt_extended import JWTManager, create_access_token, create_refresh_token, jwt_required, get_jwt_identity
 from flask_socketio import SocketIO
 from pymongo import MongoClient
 from bson import ObjectId
@@ -18,6 +18,8 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 CORS(app)
 app.config['JWT_SECRET_KEY'] = "a9f8b27c9d3e4f5b6c7d8e9f1029384756c7d8e9f1029384756a7b8c9d0e1f2"
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = 900  # 15 minutes
+app.config["JWT_REFRESH_TOKEN_EXPIRES"] = 7 * 24 * 60 * 60  # 7 days
 jwt = JWTManager(app)
 
 
@@ -138,11 +140,13 @@ def change_pass(data):
             socketio.emit('response', {'success': False, 'message': 'OTP verification required'})
             print("OTP NOT VERIFIED")
             return
+            
+        hashed_password = bcrypt.hashpw(newPassword.encode("utf-8"), bcrypt.gensalt())
 
 
         result = users_collection.update_one(
             {'email': email},
-            {'$set': {'password': newPassword}}
+            {'$set': {'password': hashed_password}}
         )
 
         if result.modified_count > 0:
@@ -423,10 +427,22 @@ def login():
 
     # Create JWT token
     access_token = create_access_token(identity=str(user["_id"]))
+    refresh_token = create_refresh_token(identity=str(user["_id"]))
     
-    return jsonify({"status": "success", "token": access_token}), 200
+    return jsonify({"status": "success", "access_token": access_token, "refresh_token": refresh_token}), 200
 
+@app.route("/refresh-token", methods=["POST"])
+@jwt_required(refresh=True)  # Requires a valid refresh token
+def refresh_token():
+    user_id = get_jwt_identity()
+    
+    # Generate a new access token
+    new_access_token = create_access_token(identity=user_id)
 
+    # Generate a new refresh token to reset its expiry
+    new_refresh_token = create_refresh_token(identity=user_id)
+
+    return jsonify({"access_token": new_access_token, "refresh_token": new_refresh_token}), 200
 
 # Get User Data (Protected)
 @app.route("/userdata", methods=["POST"])
