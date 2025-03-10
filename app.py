@@ -489,7 +489,7 @@ def get_userdata():
         user_data = {
             "id": str(user["_id"]), 
             "name": user.get("name"),
-            "email": user.get("email")
+            "email": user.get("email"),
             "profile_picture": user.get("profile_picture", "")  
 
         }
