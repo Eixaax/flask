@@ -407,6 +407,7 @@ def handle_fetch_audio_recordings(data):
             'predicted_class': audio['predicted_class'],
             'timestamp': str(audio['timestamp']),
             'audioUrl': audio['audio_url'],
+            'mark': audio['mark'],
         }
         audio_details.append(audio_info)
 
@@ -490,7 +491,6 @@ def get_userdata():
             "name": user.get("name"),
             "email": user.get("email"),
             "profile_picture": user.get("profile_picture", "")  
-
         }
 
         return jsonify({"status": "ok", "data": user_data}), 200
@@ -541,6 +541,37 @@ def update_profile():
 
     return jsonify({"status": "ok", "message": "Profile updated successfully!"})
 
+
+@socketio.on("update_audio_status")
+def update_audio_status(data):
+    try:
+        audio_id = data.get("audioId")
+        mark = data.get("mark")
+
+        if audio_id is None or mark is None:  # Allow mark to be 0
+            socketio.emit("update_audio_response", {"success": False, "error": "Invalid data"})
+            return
+
+        try:
+            audio_object_id = ObjectId(audio_id)
+        except Exception:
+            socketio.emit("update_audio_response", {"success": False, "error": "Invalid audio ID format"})
+            return
+
+        # Update the database record
+        result = audios.update_one(
+            {"_id": audio_object_id},
+            {"$set": {"mark": mark}}
+        )
+
+        if result.matched_count == 0:
+            socketio.emit("update_audio_response", {"success": False, "error": "Audio not found"})
+        else:
+            socketio.emit("update_audio_response", {"success": True, "audioId": audio_id, "mark": mark})
+
+    except Exception as e:
+        print(f"Error updating audio status: {e}")  # Log error for debugging
+        socketio.emit("update_audio_response", {"success": False, "error": "Server error"})
+
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
-
