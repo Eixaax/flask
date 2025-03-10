@@ -407,7 +407,7 @@ def handle_fetch_audio_recordings(data):
             'predicted_class': audio['predicted_class'],
             'timestamp': str(audio['timestamp']),
             'audioUrl': audio['audio_url'],
-            'mark': audio['mark'],
+            'mark': audio.get('mark', 'unmarked'),  # Provide default if mark is missing
         }
         audio_details.append(audio_info)
 
