@@ -541,6 +541,31 @@ def update_profile():
 
     return jsonify({"status": "ok", "message": "Profile updated successfully!"})
 
+
+@socketio.on("update_audio_status")
+def update_audio_status(data):
+    try:
+        audio_id = data.get("audioId")
+        mark = data.get("mark")
+
+        if not audio_id or not mark:
+            socketio.emit("update_audio_response", {"success": False, "error": "Invalid data"})
+            return
+
+        # Update the database record
+        result = audios.update_one(
+            {"_id": ObjectId(audio_id)},
+            {"$set": {"mark": mark}}
+        )
+
+        if result.matched_count == 0:
+            socketio.emit("update_audio_response", {"success": False, "error": "Audio not found"})
+        else:
+            socketio.emit("update_audio_response", {"success": True, "audioId": audio_id, "mark": mark})
+
+    except Exception as e:
+        socketio.emit("update_audio_response", {"success": False, "error": str(e)})
+
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
 
