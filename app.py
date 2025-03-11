@@ -200,10 +200,24 @@ def handle_device_status_update(data):
     user_id = data.get('user_id')
     message = data.get('message')
 
-    print(message)
-
     print(f"Received status update for user_id {user_id}: {message}")
-    socketio.emit('status_notification', {'user_id': user_id, 'message': message})
+
+    # Find the latest audio recording for this user
+    latest_audio = db.audio_recordings.find_one(
+        {"user_id": user_id}, 
+        sort=[("timestamp", -1)]
+    )
+
+    if latest_audio:
+        latest_audio["_id"] = str(latest_audio["_id"])  # Convert ObjectId to string
+
+    # Emit notification to the frontend with the latest audio
+    socketio.emit('status_notification', {
+        'user_id': user_id, 
+        'message': message,
+        'latest_audio': latest_audio  # Send the latest audio recording
+    })
+
 
 
 @socketio.on('disconnect')
