@@ -33,6 +33,10 @@ otptable = db['otp']
 
 connected_devices = {}
 
+@app.route('/')
+def index():
+    return "Hello, Flask is running!"
+
 @socketio.on('send_otp')
 def sendOTP(data):
     try:
