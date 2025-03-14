@@ -224,6 +224,9 @@ def handle_device_status_update(data):
 # Send the latest audio recording
     })
 
+    socketio.emit("new_audio_notification", {"uid": user_id})
+
+
 
 
 @socketio.on('disconnect')
