@@ -267,7 +267,6 @@ def handle_device_check_and_connect(data):
             socketio.emit('response', {
                 'success': False,
                 'message': 'Device is already paired with another device',
-                'status': 'online',
                 'connection': 'connected',
                 'deviceId': device_id
             })
@@ -277,7 +276,7 @@ def handle_device_check_and_connect(data):
         # Update the device status to 'online' and connection to 'connected'
         collection.update_one(
             {"_id": ObjectId(device_id)},
-            {"$set": {"status": "online", "connection": "connected"}}
+            {"$set": {"connection": "connected"}}
         )
         print('Device updated and saved!')
 
@@ -297,7 +296,6 @@ def handle_device_check_and_connect(data):
         socketio.emit('response', {
             'success': True,
             'message': 'Device Found',
-            'status': 'online',
             'connection': 'connected',
             'deviceId': device_id
         })
